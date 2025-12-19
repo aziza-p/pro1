@@ -1,0 +1,66 @@
+/* Global */
+body {
+  margin: 0;
+  background-color: #f9f6f7;
+  color: #4b4b4b;
+  font-family: "Poppins", sans-serif;
+}
+
+/* Code font (optional retain) */
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
+    monospace;
+}
+
+/* Footer */
+.footer {
+  background-color: #aa9a9e; /* luxury dark */
+  color: #ffffff;
+  padding-top: 30px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Footer Logo */
+.footer-logo {
+  width: 150px;
+  height: auto;
+  transition: transform 0.3s ease, filter 0.3s ease;
+}
+
+.footer-logo:hover {
+  transform: scale(1.1);
+  filter: brightness(1.2);
+}
+
+/* Social Icons */
+.social-icon {
+  margin: 10px;
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.social-icon:hover {
+  transform: scale(1.2);
+  color: #b76e79; /* Rose Gold */
+}
+
+/* Links */
+.footer a {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: #b76e79; /* Rose Gold Hover */
+}
+
+/* Footer Headings */
+.footer h5 {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #ffffff;
+}
+
+/* Footer Text center */
+.footer .text-center {
+  text-align: center;
+}
