@@ -19,15 +19,17 @@ import cookieParser from "cookie-parser";
 const app = express(); // تعريف `app` أولاً
 
 const corsOptions = {
-  origin: ENV.CLIENT_URL, //client URL local
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-  credentials: true, // Enable credentials (cookies, authorization headers, etc.)
+  origin: true, // يسمح لأي origin
+  credentials: true,
 };
 
 // استخدام middleware بعد تعريف `app`
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
+app.get("/", (req, res) => {
+  res.send("API is running 🚀");
+});
 
 //Database connection
 const connectString = `mongodb+srv://${ENV.DB_USER}:${ENV.DB_PASSWORD}@${ENV.DB_CLUSTER}/${ENV.DB_NAME}?retryWrites=true&w=majority&appName=${ENV.DB_APP_NAME}`;
@@ -511,8 +513,6 @@ app.get("/getCart/:userId", async (req, res) => {
       });
     }
 
-   
-
     res.status(200).json(cart); // ✅ هذا السطر الصح
   } catch (err) {
     console.error("getCart error:", err);
@@ -632,8 +632,16 @@ app.delete("/deleteCart/:cartId", async (req, res) => {
     res.status(500).send("Server error");
   }
 });
-const port = ENV.PORT || 3001;
+const port = process.env.PORT || 10000;
+// ===== Serve React Frontend =====
+// ===== Serve React Frontend =====
+const rootDir = path.resolve();
 
-app.listen(port, () => {
-  console.log(`You are connected at port: ${port}`);
+app.use(express.static(path.join(rootDir, "client/build")));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(rootDir, "client/build", "index.html"));
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
 });
