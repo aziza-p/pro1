@@ -19,17 +19,15 @@ import cookieParser from "cookie-parser";
 const app = express(); // تعريف `app` أولاً
 
 const corsOptions = {
-  origin: true, // يسمح لأي origin
-  credentials: true,
+  origin: ENV.CLIENT_URL, //client URL local
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  credentials: true, // Enable credentials (cookies, authorization headers, etc.)
 };
 
 // استخدام middleware بعد تعريف `app`
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
-app.get("/", (req, res) => {
-  res.send("API is running 🚀");
-});
 
 //Database connection
 const connectString = `mongodb+srv://${ENV.DB_USER}:${ENV.DB_PASSWORD}@${ENV.DB_CLUSTER}/${ENV.DB_NAME}?retryWrites=true&w=majority&appName=${ENV.DB_APP_NAME}`;
@@ -91,27 +89,12 @@ app.post("/login", async (req, res) => {
       return res.status(404).json({ error: "User not found." });
     }
 
-    let passwordMatch = false;
-
-    // If password is already encrypted
-    if (user.password.startsWith("$2b$") || user.password.startsWith("$2a$")) {
-      passwordMatch = await bcrypt.compare(password, user.password);
-    } else {
-      passwordMatch = password === user.password;
-    }
-
+    const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    return res.status(200).json({
-      user: {
-        name: user.name,
-        email: user.email,
-        isAdmin: user.userType === "admin",
-      },
-      message: "Success.",
-    });
+    res.status(200).json({ user, message: "Success." });
   } catch (err) {
     res.status(500).json({ error: "Server error. Please try again." });
   }
@@ -453,70 +436,74 @@ app.put("/updateProduct/:id", async (req, res) => {
 // Add item to cart
 // إضافة عنصر إلى السلة في الخادم
 app.post("/addToCart", async (req, res) => {
-  const { userId, productId, quantity } = req.body;
-
+  const { userId, productId, quantity } = req.body; // استقبال البيانات من العميل
   try {
-    let cart = await CartModel.findOne({ userId });
-
-    // ✅ لو ما فيه سلة → أنشئ وحدة جديدة
-    if (!cart) {
-      cart = new CartModel({
-        userId,
-        items: [],
-      });
-    }
-
     const product = await ProductModel.findById(productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    cart.items.push({
-      productId: product._id,
-      pcode: product.pcode,
-      desc: product.desc,
-      price: product.price,
-      image: product.image,
-      quantity,
-      total: product.price * quantity,
-    });
+    // التحقق من المخزون
+    if (product.stocks < quantity) {
+      return res.status(400).json({ message: "Not enough stock available" });
+    }
 
-    await cart.save();
+    product.stocks -= quantity;
+    await product.save();
 
-    res.status(200).json({
-      message: "Item added to cart",
-      cart,
-    });
+    // البحث أو إنشاء سلة جديدة للمستخدم
+    let cart = await CartModel.findOne({ userId });
+    if (!cart) {
+      cart = new CartModel({ userId, items: [] });
+    }
+
+    // تحديث السلة إذا كان العنصر موجودًا
+    const existingItem = cart.items.find((item) =>
+      item.productId.equals(productId)
+    );
+    if (existingItem) {
+      existingItem.quantity += quantity;
+      existingItem.total = existingItem.quantity * product.price;
+    } else {
+      cart.items.push({
+        productId: product._id,
+        pcode: product.pcode,
+        desc: product.desc,
+        price: product.price,
+        image: product.image,
+        quantity: quantity,
+        total: product.price * quantity,
+      });
+    }
+
+    await cart.save(); // حفظ السلة المحدثة في قاعدة البيانات
+    res.status(200).json({ cart, message: "Item added to cart" });
   } catch (error) {
-    console.error("addToCart error:", error);
+    console.error("Error adding item to cart:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
-
 // الخروج من السلة (إتمام عملية الشراء)
 // الخادم (Node.js/Express)
 
 //GET API - getCart
-
-// GET API - getCart
 app.get("/getCart/:userId", async (req, res) => {
-  const { userId } = req.params;
+  const { userId } = req.params; // Get userId from route parameters
 
   try {
-    const cart = await CartModel.findOne({ userId }).populate(
-      "items.productId"
-    ); // ✅ مهم جدًا
+    const cart = await CartModel.findOne({ userId: userId });
 
-    if (!cart) {
-      return res.status(200).json({
-        items: [], // ✅ نفس الشكل اللي الفرونت يتوقعه
-      });
-    }
+    // Count the total number of items in the cart
+    const itemCount = cart.items.reduce(
+      (total, item) => total + item.quantity,
+      0
+    );
 
-    res.status(200).json(cart); // ✅ هذا السطر الصح
+    // Send the cart data along with the item count
+    res.send({ cart: cart, count: itemCount });
   } catch (err) {
-    console.error("getCart error:", err);
-    res.status(500).json({ error: "Server error" });
+    console.error(err);
+    res.status(500).json({ error: "An error occurred" });
   }
 });
 
@@ -632,16 +619,8 @@ app.delete("/deleteCart/:cartId", async (req, res) => {
     res.status(500).send("Server error");
   }
 });
-const port = process.env.PORT || 10000;
-// ===== Serve React Frontend =====
-// ===== Serve React Frontend =====
-const rootDir = path.resolve();
+const port = ENV.PORT || 3001;
 
-app.use(express.static(path.join(rootDir, "client/build")));
-
-app.get("*", (req, res) => {
-  res.sendFile(path.join(rootDir, "client/build", "index.html"));
-  app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-  });
+app.listen(port, () => {
+  console.log(`You are connected at port: ${port}`);
 });
